@@ -1,2 +1,2 @@
 # MusicGenerationD3.1
-By using machine learning models and algorithms music will be created and clustered according to genre
+A machine learning model will be trained to generate new music.
