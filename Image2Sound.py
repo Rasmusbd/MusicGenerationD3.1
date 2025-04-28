@@ -16,7 +16,7 @@ class conf:
     n_fft = n_mels * 20
     samples = sampling_rate * duration
 
-def Image2Sound(imageNameOrImage, conf):
+def Image2Sound(imageNameOrImage, conf = conf):
     
     if type(imageNameOrImage) == str:
         image = cv2.imread(imageNameOrImage, cv2.IMREAD_GRAYSCALE)
@@ -34,7 +34,7 @@ def Image2Sound(imageNameOrImage, conf):
                                                 
         return audio
     else:
-        imageNameOrImage = image.astype(np.float32) / 255.0
+        imageNameOrImage = imageNameOrImage.astype(np.float32) / 255.0
         mel_db = image*80.0 - 80.0
         mel_power = librosa.db_to_power(mel_db)
         audio = librosa.feature.inverse.mel_to_audio(mel_power,
