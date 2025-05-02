@@ -1,5 +1,5 @@
 data/
 lightning_logs/
 fma_metadata/
-trainImages/
 __pycache__/
+vae.pth/
