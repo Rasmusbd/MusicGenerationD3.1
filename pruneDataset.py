@@ -4,11 +4,12 @@ from PIL import Image
 
 # Configuration
 folder_path = "trainImages"
-tolerance = 1e-3
+tolerance = 0.1
 
 # Track removed files
 removed_files = []
 
+deleted_files = 0
 # Process files
 for filename in os.listdir(folder_path):
     if filename.lower().endswith('.jpg'):
@@ -26,12 +27,18 @@ for filename in os.listdir(folder_path):
                 os.remove(file_path)
                 removed_files.append(filename)
 
+            if image_array.shape[1] < 2584:
+                os.remove(file_path)
+                removed_files.append(filename)
+
         except Exception as e:
             print(f"Error processing {filename}: {e}")
 
 # Print results
+
+print(deleted_files)
 if removed_files:
-    print("Removed files due to low variance (min ≈ max):")
+    print("Removed files due to low variance (min ≈ max) or bad shape")
     for f in removed_files:
         print(f)
 else:

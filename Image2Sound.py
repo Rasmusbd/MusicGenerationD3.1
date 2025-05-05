@@ -22,11 +22,8 @@ def Image2Sound(imageNameOrImage, conf = conf):
     
     if type(imageNameOrImage) == str:
         image = cv2.imread(imageNameOrImage, cv2.IMREAD_GRAYSCALE)
-        print("Test1")
-        print(image)
         image = image.astype(np.float32) / 255.0
-        expected_frames = int(np.ceil((conf.samples - conf.n_fft) / conf.hop_length)) + 1
-        image = cv2.resize(image, (expected_frames, conf.n_mels))
+        image = cv2.resize(image, (image.shape[1], conf.n_mels))
         mel_db = denormalize_spectrogram(image)
         mel_power = librosa.db_to_power(mel_db)
         audio = librosa.feature.inverse.mel_to_audio(mel_power,
