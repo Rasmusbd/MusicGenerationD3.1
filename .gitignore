@@ -4,3 +4,4 @@ fma_metadata/
 __pycache__/
 trainImages/
 vae.pth
+trainImages/
