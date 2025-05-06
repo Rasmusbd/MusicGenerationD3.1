@@ -3,3 +3,5 @@ lightning_logs/
 fma_metadata/
 trainImages/
 __pycache__/
+TESTCROP/
+MusicGenerationD3.1/
