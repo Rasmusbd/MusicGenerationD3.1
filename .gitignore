@@ -6,3 +6,4 @@ __pycache__/
 TESTCROP/
 MusicGenerationD3.1/
 getLabels.ipynb
+labels.csv

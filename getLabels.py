@@ -1,7 +1,8 @@
 import csv
 
 """Functions to get genre/label of a track.
-   Use it by importing these functions below"""
+   Use it by importing these functions below.
+   NOTE: Have to get labels.csv file locally on your computer"""
 
 def createGenreMap():
     genreMap = {} #key:track id, value:genre
