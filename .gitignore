@@ -5,3 +5,4 @@ trainImages/
 __pycache__/
 TESTCROP/
 MusicGenerationD3.1/
+getLabels.ipynb
