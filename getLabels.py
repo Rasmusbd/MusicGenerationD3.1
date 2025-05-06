@@ -19,6 +19,8 @@ def createGenreMap():
         genre = row[1]
 
         genreMap[track_id] = genre
+
+    return genreMap
     
 def getLabel(genreMap, track_id):
     #Genre map is dictionary created above, track_id is string id of track.
