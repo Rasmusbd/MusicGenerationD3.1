@@ -1,0 +1,1 @@
+vaeUsedForFirstSongs.pth latendim=50, channels=[32,64,128] inputsize=[512,512], kernel_size=[5,5] (all layers)

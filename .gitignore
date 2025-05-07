@@ -3,4 +3,7 @@ lightning_logs/
 fma_metadata/
 __pycache__/
 vae.pth
+vaeUsedForFirstSongs.pth
+vaeLowDKL.pth
 trainImages/
+trainImagesSmall/

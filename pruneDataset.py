@@ -4,7 +4,7 @@ from PIL import Image
 
 # Configuration
 folder_path = "trainImages"
-tolerance = 0.1
+tolerance = 0.05
 
 # Track removed files
 removed_files = []
@@ -26,10 +26,12 @@ for filename in os.listdir(folder_path):
             if abs(max_val - min_val) <= tolerance:
                 os.remove(file_path)
                 removed_files.append(filename)
+                deleted_files+=1
 
-            if image_array.shape[1] < 2584:
+            elif image_array.shape[1] < 512:
                 os.remove(file_path)
                 removed_files.append(filename)
+                deleted_files+=1
 
         except Exception as e:
             print(f"Error processing {filename}: {e}")
