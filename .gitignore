@@ -2,9 +2,7 @@ data/
 lightning_logs/
 fma_metadata/
 __pycache__/
-vae.pth
-vaeUsedForFirstSongs.pth
-vaeLowDKL.pth
+*.pth
 labels.csv
 trainImages/
 trainImagesSmall/
