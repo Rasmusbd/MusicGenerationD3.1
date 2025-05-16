@@ -19,7 +19,6 @@ class Dataset(torch.utils.data.Dataset):
             else:
                 inputs = [[]] * length
         self.inputs = inputs
-        self._cache = [None] * len(self.inputs)
 
         if float_dtype == "default":
             float_dtype = torch.get_default_dtype()

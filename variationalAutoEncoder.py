@@ -5,8 +5,10 @@ from deeplay.applications import Application
 from deeplay.external import External, Optimizer, Adam
 
 from pytorch_msssim import ssim
+from pipexlosspython import LossFunctions
 import torch
 import torch.nn as nn
+
 
 
 class VariationalAutoEncoder(Application):
@@ -102,7 +104,7 @@ class VariationalAutoEncoder(Application):
         x = self.decoder(x)
         return x
     
-    def make_bandpass_weights(self, H, boost_range=(50, 450), boost_factor=5.0, base_weight=1.0, device="cuda"):
+    def make_bandpass_weights(self, H, boost_range=(25, 450), boost_factor=1, base_weight=0.1, device="cuda"):
         weights = torch.full((H,), base_weight, device=device)
         start, end = boost_range
         weights[start:end] = boost_factor
@@ -140,25 +142,31 @@ class VariationalAutoEncoder(Application):
             )
         return tot_loss
     
-    def combined_ssim_logcosh(self, y_hat, y):
-        alpha = 5
+    def PIPEX_Loss(self, y_hat, y, rho, iota):
+        rec_loss = rho*self.logCoshLoss(y_hat, y, use_freq_weights=True) + iota*(1.0 - ssim(y_hat, y, data_range=1.0, size_average=True)) #Summed
+        return rec_loss
+    
+    def combined_ssim_MSE(self, y_hat, y):
+        alpha = 1
         beta = 1
         #rec_loss = (alpha*self.logCoshLoss(y_hat, y, use_freq_weights=False) + beta*(1.0 - ssim(y_hat, y, data_range=1.0, size_average=True)))*0.5 //Averaged
-        rec_loss = alpha*self.logCoshLoss(y_hat, y, use_freq_weights=False) + beta*(1.0 - ssim(y_hat, y, data_range=1.0, size_average=True)) #Summed
+        rec_loss = alpha*torch,nn.MSELoss(reduction="sum") + beta*(1.0 - ssim(y_hat, y, data_range=1.0, size_average=True)) #Summed
         return rec_loss
     def compute_loss(self, y_hat, y, mu, log_var):
+        pl = LossFunctions()
         #rec_loss = self.logCoshLoss(y_hat, y, use_freq_weights=False) //Very good at capturing intensities for an entire melspectrogram band but bad at details
-        #rec_loss = self.reconstruction_loss(y_hat, y) //Not able to get anything decent using MSE
+        #rec_loss = self.reconstruction_loss(y_hat, y) + (1.0 - ssim(y_hat, y, data_range=1.0, size_average=True)) #//Not able to get anything decent using MSE
         #rec_loss = 1.0 - ssim(y_hat, y, data_range=1.0, size_average=True) //Used for the vaeUsedForFirstSongs and the vaeLowDKL weights
-        rec_loss = self.combined_ssim_logcosh(y_hat, y) #Combined ssim and logcosh losses which hopefully gives a better result
-        log_var = torch.clamp(log_var, min=-10.0, max=10.0)
+        rec_loss =  pl.PIPEXLoss(y_hat=y_hat, y=y, rho=1, iota=3) #Combined ssim and logcosh losses which hopefully gives a better result
+        #rec_loss = self.reconstruction_loss(y_hat, y)
+        #log_var = torch.clamp(log_var, min=-10.0, max=10.0)
 
         #Compute KL divergence
-        KLD = -0.5 * torch.mean(torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1))
+        KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
 
         #δ-VAE parameters
-        delta = 1   # target KL divergence
-        gamma = 0.1 # strength of KL penalty
+        delta = 100   # target KL divergence
+        gamma = 10 # strength of KL penalty
 
         #δ-VAE KL penalty: encourages KL to stay near delta
         kl_penalty = gamma * (KLD - delta) ** 2

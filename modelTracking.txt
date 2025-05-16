@@ -1,1 +1,2 @@
-vaeUsedForFirstSongs.pth latendim=50, channels=[32,64,128] inputsize=[512,512], kernel_size=[5,5] (all layers)
+vaeUsedForFirstSongs.pth: latendim=50, channels=[32,64,128] inputsize=[512,512], kernel_size=[5,5] (all layers), recreation_loss=PIPEX, optimizer=AdamW(lr=1e-3)
+wae128.pth: wae = dl.WassersteinAutoEncoder(input_size=[512,512], channels=[16, 32, 64, 128, 256], latent_dim=128, reconstruction_loss=torch.nn.MSELoss(reduction="mean"), optimizer=dl.AdamW(lr=1e-4) ).create() wae.decoder.blocks[4].activation = torch.nn.Identity()

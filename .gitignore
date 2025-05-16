@@ -5,5 +5,6 @@ __pycache__/
 vae.pth
 vaeUsedForFirstSongs.pth
 vaeLowDKL.pth
+labels.csv
 trainImages/
 trainImagesSmall/

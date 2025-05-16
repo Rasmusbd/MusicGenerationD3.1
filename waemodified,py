@@ -1,0 +1,152 @@
+from typing import Optional, Sequence, Callable, List
+from collections import deque
+
+from deeplay.components import ConvolutionalEncoder2d, ConvolutionalDecoder2d
+from deeplay.applications import Application
+from deeplay.external import External, Optimizer, Adam, Layer
+
+import torch
+import torch.nn as nn
+
+
+class WassersteinAutoEncoder(Application):
+    encoder: torch.nn.Module
+    decoder: torch.nn.Module
+    discriminator: torch.nn.Module
+    loss: torch.nn.Module
+    metrics: list
+    optimizer: Optimizer
+
+    def __init__(
+        self,
+        input_size: Optional[Sequence[int]] = (28, 28),
+        channels: Optional[List[int]] = [32, 64, 128],
+        encoder: Optional[nn.Module] = None,
+        decoder: Optional[nn.Module] = None,
+        discriminator: Optional[nn.Module] = None,
+        reconstruction_loss: Optional[Callable] = nn.MSELoss(reduction="mean"),
+        latent_dim=int,
+        optimizer=None,
+        **kwargs,
+    ):
+        red_size = [int(dim / (2 ** (len(channels) - 1))) for dim in input_size]
+        self.encoder = encoder or self._get_default_encoder(channels)
+        self.fc_enc = nn.Linear(channels[-1] * red_size[0] * red_size[1], latent_dim)
+        self.fc_dec = nn.Linear(latent_dim, channels[-1] * red_size[0] * red_size[1])
+        self.decoder = decoder or self._get_default_decoder(channels[::-1], red_size)
+        self.reconstruction_loss = reconstruction_loss or nn.MSELoss(reduction="mean")
+        self.latent_dim = latent_dim
+        self.reg_weight = 1.0
+        self.z_var = 1.0
+        self._latest_mmd_loss = torch.tensor(0.6) 
+
+        super().__init__(**kwargs)
+
+        self.optimizer = optimizer or Adam(lr=5e-3)
+
+        @self.optimizer.params
+        def params(self):
+            return self.parameters()
+
+        # MMD batch simulation buffer (on CPU)
+        self.mmd_buffer = deque()
+        self.mmd_buffer_size = 256 # simulated batch size for MMD
+
+    def _get_default_encoder(self, channels):
+        encoder = ConvolutionalEncoder2d(1, channels[:-1], channels[-1])
+        encoder.postprocess.configure(nn.Flatten)
+        encoder.blocks[1:].layer.configure(stride=2)
+        encoder["blocks", :].all.normalized(nn.BatchNorm2d).remove("pool", allow_missing=True)
+        return encoder
+
+    def _get_default_decoder(self, channels, red_size):
+        decoder = ConvolutionalDecoder2d(channels[0], channels[1:], 1, out_activation=nn.Sigmoid)
+        decoder.preprocess.configure(
+            nn.Unflatten,
+            dim=1,
+            unflattened_size=(channels[0], red_size[0], red_size[1]),
+        )
+        decoder[..., "layer"].all.configure(
+            nn.ConvTranspose2d,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
+        decoder["blocks", :-1].all.normalized(nn.BatchNorm2d)
+        decoder.blocks[-1].layer.configure(
+            nn.Conv2d,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
+        decoder["blocks", :].all.remove("upsample", allow_missing=True)
+        return decoder
+
+    def encode(self, x):
+        x = self.encoder(x)
+        z = self.fc_enc(x)
+        return z
+
+    def decode(self, z):
+        x = self.fc_dec(z)
+        x = self.decoder(x)
+        return x
+
+    def forward(self, x):
+        z = self.encode(x)
+        x = self.decode(z)
+        return x, z
+
+    def training_step(self, batch, batch_idx):
+        x, y = self.train_preprocess(batch)
+        y_hat, z = self(x)
+        rec_loss = self.reconstruction_loss(y_hat, y) + 1e-8
+        
+
+        self.mmd_buffer.extend(z.detach().cpu())
+
+        if len(self.mmd_buffer) >= self.mmd_buffer_size:
+            z_simulated = torch.stack(list(self.mmd_buffer)[:self.mmd_buffer_size])
+            with torch.no_grad():
+                mmd_loss = self.compute_mmd(z_simulated, device='cpu').to(x.device)
+            self._latest_mmd_loss = mmd_loss.detach()
+            for _ in range(self.mmd_buffer_size):
+                self.mmd_buffer.popleft()
+        else:
+            mmd_loss = self._latest_mmd_loss.to(x.device)
+
+        loss = rec_loss + 10*mmd_loss
+
+        self.log("train_rec_loss", rec_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_mmd_loss", mmd_loss, on_step=True, on_epoch=True, prog_bar=True)
+
+        return loss
+
+    def compute_IMQ(self, x1, x2):
+        C = 2 * self.latent_dim * self.z_var
+        kernel = C / (1e-8 + C + (x1 - x2).pow(2).sum(-1))
+        return kernel
+
+    def compute_kernel(self, x1, x2):
+        D = x1.size(1)
+        N = x1.size(0)
+        x1 = x1.unsqueeze(1).expand(N, N, D)
+        x2 = x2.unsqueeze(0).expand(N, N, D)
+        return self.compute_IMQ(x1, x2)
+
+    def compute_mmd(self, z: torch.Tensor, device="CPU"):
+        z = z.to("cpu")
+        batch_size = z.size(0)
+        qz = torch.randn_like(z)
+
+        qz_kernel = self.compute_kernel(qz, qz)
+        z_kernel = self.compute_kernel(z, z)
+        qz_z_kernel = self.compute_kernel(qz, z)
+
+        qz_kernel = (qz_kernel.sum() - qz_kernel.diag().sum()) / (batch_size * (batch_size - 1))
+        z_kernel = (z_kernel.sum() - z_kernel.diag().sum()) / (batch_size * (batch_size - 1))
+        qz_z_kernel = qz_z_kernel.sum() / (batch_size * batch_size)
+
+        mmd = self.reg_weight * (qz_kernel + z_kernel - 2 * qz_z_kernel)
+        return mmd.to(device or "cpu")
