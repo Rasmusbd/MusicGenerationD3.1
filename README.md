@@ -1,5 +1,5 @@
 # MusicGenerationD3.1
-A machine learning model will be trained to generate new music.
+A machine learning model trained to generate new music using a WAE.
 
 Created by:
 Rasmus Börjesson Dahlstedt
